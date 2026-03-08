@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket 伊朗协议实时监控系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 24px;
+            box-shadow: 0 20px 50px rgba(59, 130, 246, 0.3);
+        }
+        
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        header h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 20px;
+            border-radius: 30px;
+        }
+        
+        .pulse {
+            width: 12px;
+            height: 12px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        
+        .last-update {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #374151;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #334155;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+        }
+        
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .metric-title {
+            font-size: 0.95em;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        
+        .metric-icon {
+            font-size: 1.5em;
+        }
+        
+        .metric-value {
+            font-size: 2.8em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, #fff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .metric-change {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        
+        .change-up {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .change-down {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .chart-card {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #334155;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .chart-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 350px;
+        }
+        
+        .market-table-container {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #334155;
+            overflow-x: auto;
+        }
+        
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95em;
+        }
+        
+        th {
+            background: #0f172a;
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #94a3b8;
+            border-bottom: 2px solid #334155;
+            white-space: nowrap;
+        }
+        
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #334155;
+        }
+        
+        tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        .prob-bar-container {
+            width: 120px;
+            height: 8px;
+            background: #334155;
+            border-radius: 4px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        
+        .prob-bar {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .prob-low { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .prob-medium { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .prob-high { background: linear-gradient(90deg, #10b981, #34d399); }
+        
+        .odds {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+        
+        .odds-positive {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .odds-negative {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .status-live {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            animation: blink 2s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .alert-panel {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #334155;
+            margin-top: 24px;
+        }
+        
+        .alert-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid #3b82f6;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .alert-icon {
+            font-size: 1.5em;
+        }
+        
+        .alert-content h4 {
+            color: #60a5fa;
+            margin-bottom: 5px;
+        }
+        
+        .alert-content p {
+            color: #94a3b8;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+        
+        .alert-time {
+            color: #64748b;
+            font-size: 0.85em;
+            margin-left: auto;
+        }
+        
+        .data-input-panel {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #334155;
+            margin-bottom: 24px;
+        }
+        
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .input-group label {
+            font-size: 0.9em;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        
+        .input-group input, .input-group select {
+            padding: 12px;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 1em;
+        }
+        
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-top {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            header h1 {
+                font-size: 1.5em;
+            }
+            
+            .metric-value {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div>
+                    <h1>🇮🇷 Polymarket 伊朗协议实时监控系统</h1>
+                    <div class="last-update">最后更新: <span id="lastUpdate">--</span> | 数据延迟: ~5分钟</div>
+                </div>
+                <div class="live-indicator">
+                    <div class="pulse"></div>
+                    <span>实时监控中</span>
+                </div>
+            </div>
+            <div class="controls" style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="refreshData()">
+                    🔄 刷新数据
+                </button>
+                <button class="btn btn-secondary" onclick="toggleAutoRefresh()">
+                    ⏱️ 自动刷新: <span id="autoRefreshStatus">开启</span>
+                </button>
+                <button class="btn btn-secondary" onclick="exportData()">
+                    📥 导出数据
+                </button>
+                <button class="btn btn-secondary" onclick="showAddMarketModal()">
+                    ➕ 添加市场
+                </button>
+            </div>
+        </header>
+        
+        <div class="dashboard">
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">整体市场情绪</span>
+                    <span class="metric-icon">📊</span>
+                </div>
+                <div class="metric-value" id="marketSentiment">--</div>
+                <div class="metric-change change-down">
+                    <span>↓</span> 看跌
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">加权平均概率</span>
+                    <span class="metric-icon">🎯</span>
+                </div>
+                <div class="metric-value" id="avgProbability">--%</div>
+                <div class="metric-change change-down">
+                    <span>↓</span> <span id="probChange">-2.3%</span> (24h)
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">总交易量</span>
+                    <span class="metric-icon">💰</span>
+                </div>
+                <div class="metric-value" id="totalVolume">$--M</div>
+                <div class="metric-change change-up">
+                    <span>↑</span> <span id="volChange">+5.2%</span> (24h)
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">活跃市场数</span>
+                    <span class="metric-icon">📈</span>
+                </div>
+                <div class="metric-value" id="activeMarkets">--</div>
+                <div class="metric-change" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">
+                    实时监控
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <span class="chart-title">📈 实时概率趋势</span>
+                    <span class="badge status-live">● LIVE</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <div class="chart-header">
+                    <span class="chart-title">🥧 概率分布占比</span>
+                    <span class="badge" style="background: rgba(139, 92, 246, 0.2); color: #a78bfa;">实时</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="distributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="market-table-container">
+            <div class="table-header">
+                <h3 style="font-size: 1.3em; display: flex; align-items: center; gap: 10px;">
+                    📋 活跃市场监控
+                </h3>
+                <div style="display: flex; gap: 10px;">
+                    <select id="filterCategory" onchange="filterMarkets()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0;">
+                        <option value="all">全部类别</option>
+                        <option value="war_end">战争结束</option>
+                        <option value="peace_deal">和平协议</option>
+                        <option value="ceasefire">停火协议</option>
+                        <option value="regime_change">政权更迭</option>
+                    </select>
+                    <select id="sortBy" onchange="sortMarkets()" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0;">
+                        <option value="date">按日期排序</option>
+                        <option value="probability">按概率排序</option>
+                        <option value="volume">按交易量排序</option>
+                    </select>
+                </div>
+            </div>
+            <table id="marketTable">
+                <thead>
+                    <tr>
+                        <th>市场</th>
+                        <th>目标日期</th>
+                        <th>YES 概率</th>
+                        <th>赔率</th>
+                        <th>24h 变化</th>
+                        <th>交易量</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="marketTableBody">
+                    <!-- 动态生成 -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="alert-panel">
+            <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                🔔 实时预警
+            </h3>
+            <div id="alertContainer">
+                <!-- 动态生成 -->
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 初始市场数据
+        let markets = [];
+        
+        // 历史数据用于趋势图
+        let historyData = [];
+        
+        // 图表实例
+        let trendChart, distributionChart;
+        
+        // 自动刷新定时器
+        let autoRefreshTimer = null;
+        let isAutoRefresh = true;
+        
+        // 初始化
+        function init() {
+            updateDashboard();
+            initCharts();
+            renderTable();
+            generateAlerts();
+            updateLastUpdateTime();
+            
+            // 启动自动刷新
+            if (isAutoRefresh) {
+                startAutoRefresh();
+            }
+        }
+        
+        // 更新仪表板
+        function updateDashboard() {
+            const avgProb = (markets.reduce((sum, m) => sum + m.yes, 0) / markets.length * 100).toFixed(1);
+            const totalVol = markets.reduce((sum, m) => sum + m.volume, 0);
+            
+            document.getElementById('marketSentiment').textContent = avgProb < 30 ? '看跌' : avgProb > 50 ? '看涨' : '中性';
+            document.getElementById('avgProbability').textContent = avgProb + '%';
+            document.getElementById('totalVolume').textContent = '$' + totalVol + 'M';
+            document.getElementById('activeMarkets').textContent = markets.length;
+        }
+        
+        // 初始化图表
+        function initCharts() {
+            // 趋势图
+            const ctx1 = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: markets.map(m => m.date.slice(5)),
+                    datasets: [{
+                        label: 'YES 概率 (%)',
+                        data: markets.map(m => (m.yes * 100).toFixed(1)),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#3b82f6',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 60,
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8', callback: v => v + '%' }
+                        },
+                        x: {
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+            
+            // 分布图
+            const ctx2 = document.getElementById('distributionChart').getContext('2d');
+            const categories = {};
+            markets.forEach(m => {
+                categories[m.type] = (categories[m.type] || 0) + m.yes;
+            });
+            
+            distributionChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(categories).map(k => ({
+                        'war_end': '战争结束',
+                        'peace_deal': '和平协议',
+                        'ceasefire': '停火',
+                        'regime_change': '政权更迭'
+                    })[k] || k),
+                    datasets: [{
+                        data: Object.values(categories),
+                        backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: '#e2e8f0', padding: 20 }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 渲染表格
+        function renderTable() {
+            const tbody = document.getElementById('marketTableBody');
+            tbody.innerHTML = markets.map(m => {
+                const probClass = m.yes < 0.25 ? 'prob-low' : m.yes < 0.45 ? 'prob-medium' : 'prob-high';
+                const odds = m.yes >= 0.5 ? Math.round(-100 * m.yes / (1 - m.yes)) : '+' + Math.round(100 * (1 - m.yes) / m.yes);
+                const oddsClass = odds > 0 ? 'odds-positive' : 'odds-negative';
+                const changeClass = m.change >= 0 ? 'change-up' : 'change-down';
+                const changeIcon = m.change >= 0 ? '↑' : '↓';
+                
+                return `
+                    <tr>
+                        <td><strong>${m.question}</strong></td>
+                        <td>${m.date}</td>
+                        <td>
+                            <div class="prob-bar-container">
+                                <div class="prob-bar ${probClass}" style="width: ${m.yes * 100}%"></div>
+                            </div>
+                            <span style="font-weight: 600;">${(m.yes * 100).toFixed(1)}%</span>
+                        </td>
+                        <td><span class="odds ${oddsClass}">${odds}</span></td>
+                        <td><span class="metric-change ${changeClass}">${changeIcon} ${Math.abs(m.change).toFixed(1)}%</span></td>
+                        <td>$${m.volume}M</td>
+                        <td><span class="badge status-live">● 活跃</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // 生成预警
+        function generateAlerts() {
+            const alerts = [];
+            
+            // 检测大幅变化
+            markets.forEach(m => {
+                if (Math.abs(m.change) > 3) {
+                    alerts.push({
+                        icon: m.change > 0 ? '📈' : '📉',
+                        title: `${m.question} 概率${m.change > 0 ? '上涨' : '下跌'} ${Math.abs(m.change).toFixed(1)}%`,
+                        content: `当前概率: ${(m.yes * 100).toFixed(1)}%，建议关注相关新闻动态`,
+                        time: '刚刚',
+                        type: 'warning'
+                    });
+                }
+            });
+            
+            // 检测高交易量
+            const highVol = markets.filter(m => m.volume > 80);
+            if (highVol.length > 0) {
+                alerts.push({
+                    icon: '💰',
+                    title: '高交易量警报',
+                    content: `${highVol.length} 个市场交易量超过 $80M，显示市场活跃度提升`,
+                    time: '5分钟前',
+                    type: 'info'
+                });
+            }
+            
+            // 检测概率拐点
+            const inflection = markets.find(m => m.date === '2026-05-31');
+            if (inflection && inflection.yes > 0.25) {
+                alerts.push({
+                    icon: '🔥',
+                    title: '关键拐点预警: 5月31日',
+                    content: '该日期概率显著上升，可能反映市场对夏季外交窗口期的预期',
+                    time: '10分钟前',
+                    type: 'critical'
+                });
+            }
+            
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = alerts.map(a => `
+                <div class="alert-item">
+                    <span class="alert-icon">${a.icon}</span>
+                    <div class="alert-content">
+                        <h4>${a.title}</h4>
+                        <p>${a.content}</p>
+                    </div>
+                    <span class="alert-time">${a.time}</span>
+                </div>
+            `).join('');
+        }
+        
+        // 刷新数据
+        function refreshData() {
+            // 模拟数据更新
+            markets.forEach(m => {
+                const change = (Math.random() - 0.5) * 0.04;
+                m.yes = Math.max(0.05, Math.min(0.95, m.yes + change));
+                m.no = 1 - m.yes;
+                m.change = change * 100;
+            });
+            
+            updateDashboard();
+            renderTable();
+            generateAlerts();
+            updateCharts();
+            updateLastUpdateTime();
+        }
+        
+        // 更新图表
+        function updateCharts() {
+            trendChart.data.datasets[0].data = markets.map(m => (m.yes * 100).toFixed(1));
+            trendChart.update();
+        }
+        
+        // 更新时间
+        function updateLastUpdateTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleString('zh-CN');
+        }
+        
+        // 自动刷新控制
+        function toggleAutoRefresh() {
+            isAutoRefresh = !isAutoRefresh;
+            document.getElementById('autoRefreshStatus').textContent = isAutoRefresh ? '开启' : '关闭';
+            
+            if (isAutoRefresh) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        }
+        
+        function startAutoRefresh() {
+            if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+            autoRefreshTimer = setInterval(refreshData, 30000); // 30秒刷新
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+        }
+        
+        // 导出数据
+        function exportData() {
+            const data = {
+                timestamp: new Date().toISOString(),
+                markets: markets,
+                summary: {
+                    avgProbability: document.getElementById('avgProbability').textContent,
+                    totalVolume: document.getElementById('totalVolume').textContent,
+                    sentiment: document.getElementById('marketSentiment').textContent
+                }
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `polymarket_iran_data_${Date.now()}.json`;
+            a.click();
+        }
+        
+        // 筛选市场
+        function filterMarkets() {
+            const category = document.getElementById('filterCategory').value;
+            // 实现筛选逻辑
+            renderTable();
+        }
+        
+        // 排序市场
+        function sortMarkets() {
+            const sortBy = document.getElementById('sortBy').value;
+            // 实现排序逻辑
+            renderTable();
+        }
+        
+        // 显示添加市场弹窗
+        function showAddMarketModal() {
+            alert('添加市场功能：请编辑 iran_realtime_monitor.html 文件中的 markets 数组');
+        }
+        
+        // 页面加载时初始化
+        window.onload = init;
+    </script>
+</body>
+</html>
